@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "IAUN.InformationRetrieval.Final": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
