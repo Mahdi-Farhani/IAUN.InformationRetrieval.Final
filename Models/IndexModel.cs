@@ -14,3 +14,15 @@ public class ResultModel
 	public int DocumentId { get; set; }
 
 }
+
+public class DocumentEmbedding
+{
+	public int DocumentId { get; set; }
+	public float[] Embeddings { get; set; } = [];
+}
+public class DocumentSimilarity
+{
+	public int DocumentId { get; set; }
+	public int QueryId { get; set; }
+	public float Similarity { get; set; }
+}

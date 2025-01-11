@@ -132,7 +132,6 @@ public partial class DocumentParser(string sourcePath,string relPath, IDatabase 
 		Documents.ForEach((document) =>
 		{
 
-
 			var documentToken = new TokenModel { DocumentId = document.Id };
 			using (var contentTokenStream = analyzer.GetTokenStream("content", document.Content))
 			{
