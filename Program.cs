@@ -70,6 +70,7 @@ var allBertRetrieved = new List<List<DocumentSimilarity>>();
 
 bertProcessor.Queries.ForEach(query =>
 {
+	queryIndex++;
 	var output = bertProcessor.Search(query, index++);
 	allBertRetrieved.Add(output);
 	
