@@ -56,7 +56,7 @@ parser.Quires.ForEach(async query =>
 });
 
 #endregion
-var map = documents.MAP(allRetrieved!, queryIndex);
+var map = documents.MAP(allRetrieved!);
 Console.WriteLine($"MAP for all queries = {map:F4}");
 
 
@@ -65,13 +65,13 @@ Console.WriteLine($"{new string('-', 20)} BERT MODEL {new string('-', 20)}");
 #region BERT
 var bertProcessor = new BertEmbeddings(sourcePath, relPath, vocab, onnx, queryPath, database);
 await bertProcessor.PrepareDocuments();
-var index = 0;
+queryIndex = 0;
 var allBertRetrieved = new List<List<DocumentSimilarity>>();
 
 bertProcessor.Queries.ForEach(query =>
 {
 	queryIndex++;
-	var output = bertProcessor.Search(query, index++);
+	var output = bertProcessor.Search(query, queryIndex);
 	allBertRetrieved.Add(output);
 	
 	foreach (var item in output.Take(10).ToList())
@@ -89,7 +89,7 @@ bertProcessor.Queries.ForEach(query =>
 
 	Console.WriteLine(new string('-', 20));
 });
-map = bertProcessor.MAP(allBertRetrieved!, queryIndex);
+map = bertProcessor.MAP(allBertRetrieved!);
 Console.WriteLine($"MAP for all queries = {map:F6}");
 Console.WriteLine(new string('-', 20));
 

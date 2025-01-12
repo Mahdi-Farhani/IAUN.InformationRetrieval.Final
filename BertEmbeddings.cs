@@ -267,7 +267,7 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 	}
 
 
-	public decimal MAP(List<List<DocumentSimilarity>> result, int queryNumber)
+	public decimal MAP(List<List<DocumentSimilarity>> result)
 	{
 		var totalAP = 0m;
 

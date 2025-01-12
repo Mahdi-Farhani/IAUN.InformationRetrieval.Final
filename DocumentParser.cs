@@ -421,13 +421,13 @@ public partial class DocumentParser(string sourcePath,string relPath, IDatabase 
 	}
 
 
-	public decimal MAP(List<List<PostingListInfo>> result, int queryNumber)
+	public decimal MAP(List<List<PostingListInfo>> result)
 	{
 		var totalAP = 0m;
 
 		for (int i = 0; i < result.Count; i++)
 		{
-			var ap = CalculateAveragePrecision(result[i],queryNumber);
+			var ap = CalculateAveragePrecision(result[i],i);
 			totalAP += ap;
 		}
 
