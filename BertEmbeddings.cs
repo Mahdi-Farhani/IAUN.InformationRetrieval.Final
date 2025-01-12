@@ -237,7 +237,7 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 		var relevantDocuments = Result.Where(x => x.QueryNumber == queryNumber).ToList();
 		var relevantDocIds = relevantDocuments.Select(x => x.DocumentId).ToList();
 		var relevantRetrieved = result?.Where(x => relevantDocIds.Contains(x.DocumentId)).Count() ?? 0;
-
+		if (relevantDocuments.Count == 0) return 0;
 		return relevantRetrieved / relevantDocuments.Count;
 	}
 
@@ -273,7 +273,7 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 
 		for (int i = 0; i < result.Count; i++)
 		{
-			var ap = CalculateAveragePrecision(result[i], queryNumber);
+			var ap = CalculateAveragePrecision(result[i], i);
 			totalAP += ap;
 		}
 

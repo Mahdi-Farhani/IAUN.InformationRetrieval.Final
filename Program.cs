@@ -90,7 +90,7 @@ bertProcessor.Queries.ForEach(query =>
 	Console.WriteLine(new string('-', 20));
 });
 map = bertProcessor.MAP(allBertRetrieved!, queryIndex);
-Console.WriteLine($"MAP for all queries = {map:F4}");
+Console.WriteLine($"MAP for all queries = {map:F6}");
 Console.WriteLine(new string('-', 20));
 
 #endregion
