@@ -70,10 +70,10 @@ var allBertRetrieved = new List<List<DocumentSimilarity>>();
 
 bertProcessor.Queries.ForEach(query =>
 {
-	var result = bertProcessor.Search(query, index++);
-	allBertRetrieved.Add(result);
-	var output=result.Take(10).ToList();
-	foreach (var item in output)
+	var output = bertProcessor.Search(query, index++);
+	allBertRetrieved.Add(output);
+	
+	foreach (var item in output.Take(10).ToList())
 	{
 		Console.WriteLine($"{item.DocumentId} ---- {item.Similarity}");
 	}

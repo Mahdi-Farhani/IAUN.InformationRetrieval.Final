@@ -108,18 +108,14 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 		sw.Start();
 		var allQueriesText = await File.ReadAllTextAsync(queryPath, System.Text.Encoding.UTF8);
 
-		var allQueries = DocumentSplitter().Split(allQueriesText).ToList();
-		allQueries.RemoveAll(string.IsNullOrEmpty);
+		var allQueries = QuerySplitter().Matches(allQueriesText).ToList();
 		Console.WriteLine($"{allQueries.Count} queries found");
-		var index = 0;
-		foreach (var document in allQueries)
+		foreach (var item in allQueries)
 		{
-			var queryId = ++index;
-			var queryContentMatch = QueryContent().Match(document);
-			if (queryContentMatch.Success)
-			{
-				Queries.Add(queryContentMatch.Value.Trim());
-			}
+
+			var query = item.Value.TrimStart().TrimEnd();
+			Queries.Add(query);
+
 
 		}
 		sw.Stop();
@@ -131,10 +127,11 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 		var sw = new Stopwatch();
 		sw.Start();
 		Console.WriteLine("Start preparing documents");
-		var loadVocab=LoadVocab();
+		var loadVocab = LoadVocab();
 		var loadQueries = FetchAllQueriesAsync();
-		var loadDocuments=FetchAllDocumentsAsync();
-		await Task.WhenAll(loadQueries, loadDocuments, loadVocab);
+		var loadDocuments = FetchAllDocumentsAsync();
+		var loadRel = LoadRelFile();
+		await Task.WhenAll(loadQueries, loadDocuments, loadVocab,loadRel);
 
 		foreach (var document in Documents)
 		{
@@ -320,14 +317,14 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 
 	[GeneratedRegex(@"^\n?\.I\s+\d+", RegexOptions.Multiline)]
 	private static partial Regex DocumentSplitter();
+	[GeneratedRegex(@"(?<=^\.W\s)([\s\S]*?)(?=\n\.\w)", RegexOptions.Multiline | RegexOptions.Singleline)]
+	private static partial Regex QuerySplitter();
 	[GeneratedRegex("\\n\\.T\\s(.+)")]
 	private static partial Regex DocumentTitle();
 	[GeneratedRegex("\\n\\.A\\s(.+)")]
 	private static partial Regex DocumentAuthor();
 	[GeneratedRegex("(?<=\\.W\\s).*(?=\\n\\.X)", RegexOptions.Singleline)]
-	private static partial Regex DocumentContent();
-	[GeneratedRegex("(?<=\\.W\\s).*(?=\\n\\.I)", RegexOptions.Singleline)]
-	private static partial Regex QueryContent();
+	private static partial Regex DocumentContent();	
 	[GeneratedRegex("\\n\\.X\\s(.+)")]
 	private static partial Regex DocumentExtra();
 	[GeneratedRegex("(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+\\.\\d+)")]
