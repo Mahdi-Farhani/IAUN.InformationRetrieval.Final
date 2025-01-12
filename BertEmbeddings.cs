@@ -1,31 +1,25 @@
 ﻿using IAUN.InformationRetrieval.Final.Models;
-using Lucene.Net.Analysis;
-using Lucene.Net.Analysis.Core;
-using Lucene.Net.Analysis.En;
-using Lucene.Net.Analysis.Standard;
-using Lucene.Net.Util;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using StackExchange.Redis;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace IAUN.InformationRetrieval.Final;
-public partial class BertEmbeddings(string sourcePath, string relPath, string vocabPath, IDatabase database, string modelPath)
+public partial class BertEmbeddings(string sourcePath, string relPath, string vocabPath, string modelPath, string queryPath, IDatabase database)
 {
 	private const string DocumentKey = "Documents";
 	private const string TokenKey = "Bert_DocumentTokens";
-	private const LuceneVersion CurrentLuceneVersion = LuceneVersion.LUCENE_48;
 
 	private readonly string sourcePath = sourcePath;
 	private readonly string relPath = relPath;
 	private readonly string vocabPath = vocabPath;
+	private readonly string queryPath = queryPath;
 	private readonly IDatabase database = database;
 	private Dictionary<string, int> vocab = [];
 	private readonly InferenceSession session = new(modelPath);
 	public List<Document> Documents { get; set; } = [];
+	public List<string> Queries { get; set; } = [];
 	public List<TokenModel> DocumentsTokens { get; set; } = [];
 	public List<ResultModel> Result { get; set; } = [];
 	public List<DocumentEmbedding> DocumentEmbeddings { get; set; } = [];
@@ -46,7 +40,10 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 		await ReadDocumentsAsync();
 		return Documents.Count;
 	}
-
+	public List<string> LoadQueries()
+	{
+		throw new NotImplementedException();
+	}
 	private async Task ReadDocumentsAsync()
 	{
 		var sw = new Stopwatch();
@@ -105,15 +102,40 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 		sw.Stop();
 		Console.WriteLine($"fetching data took {sw.ElapsedMilliseconds} ms");
 	}
+	private async Task FetchAllQueriesAsync()
+	{
+		var sw = new Stopwatch();
+		sw.Start();
+		var allQueriesText = await File.ReadAllTextAsync(queryPath, System.Text.Encoding.UTF8);
+
+		var allQueries = DocumentSplitter().Split(allQueriesText).ToList();
+		allQueries.RemoveAll(string.IsNullOrEmpty);
+		Console.WriteLine($"{allQueries.Count} queries found");
+		var index = 0;
+		foreach (var document in allQueries)
+		{
+			var queryId = ++index;
+			var queryContentMatch = QueryContent().Match(document);
+			if (queryContentMatch.Success)
+			{
+				Queries.Add(queryContentMatch.Value.Trim());
+			}
+
+		}
+		sw.Stop();
+		Console.WriteLine($"queries data took {sw.ElapsedMilliseconds} ms");
+	}
 
 	public async Task PrepareDocuments()
 	{
 		var sw = new Stopwatch();
 		sw.Start();
 		Console.WriteLine("Start preparing documents");
-		await LoadVocab();
+		var loadVocab=LoadVocab();
+		var loadQueries = FetchAllQueriesAsync();
+		var loadDocuments=FetchAllDocumentsAsync();
+		await Task.WhenAll(loadQueries, loadDocuments, loadVocab);
 
-		await FetchAllDocumentsAsync();
 		foreach (var document in Documents)
 		{
 			var embeddings = GetEmbeddings(document.Content);
@@ -139,8 +161,8 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 	{
 		var sw = new Stopwatch();
 		sw.Start();
-		text = text.ToLower().Trim(); 
-		var output = text.Split(' ').ToList();		
+		text = text.ToLower().Trim();
+		var output = text.Split(' ').ToList();
 		sw.Stop();
 		Console.WriteLine($"tokenizing query took {sw.ElapsedMilliseconds} ms");
 		return output;
@@ -205,7 +227,7 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 		sw.Stop();
 		Console.WriteLine($"Query file fetched in {sw.ElapsedMilliseconds} ms.");
 	}
-	public decimal Precision(List<PostingListInfo>? result, int queryNumber)
+	public decimal Precision(List<DocumentSimilarity>? result, int queryNumber)
 	{
 		var relevantDocuments = Result.Where(x => x.QueryNumber == queryNumber).ToList();
 		var relevantDocIds = relevantDocuments.Select(x => x.DocumentId).ToList();
@@ -213,7 +235,7 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 
 		return relevantRetrieved / (result?.Count ?? 0m);
 	}
-	public decimal ReCall(List<PostingListInfo>? result, int queryNumber)
+	public decimal ReCall(List<DocumentSimilarity>? result, int queryNumber)
 	{
 		var relevantDocuments = Result.Where(x => x.QueryNumber == queryNumber).ToList();
 		var relevantDocIds = relevantDocuments.Select(x => x.DocumentId).ToList();
@@ -222,25 +244,57 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 		return relevantRetrieved / relevantDocuments.Count;
 	}
 
-	public decimal FMeasure(List<PostingListInfo>? result, int queryNumber)
+	public decimal FMeasure(List<DocumentSimilarity>? result, int queryNumber)
 	{
 		var precision = Precision(result, queryNumber);
 		var recall = ReCall(result, queryNumber);
 		if (precision == 0 && recall == 0) return 0;
 		return ((precision * recall) / (precision + recall)) * 2;
 	}
+	private decimal CalculateAveragePrecision(List<DocumentSimilarity> retrievedDocs, int queryNumber)
+	{
+		var averagePrecision = 0m;
+		int relevantRetrieved = 0;
+
+		for (int i = 0; i < retrievedDocs.Count; i++)
+		{
+			if (Result.Where(x => x.QueryNumber == queryNumber).Any(x => x.DocumentId == retrievedDocs[i].DocumentId))
+			{
+				relevantRetrieved++;
+				var precisionAtK = (decimal)relevantRetrieved / (i + 1);
+				averagePrecision += precisionAtK;
+			}
+		}
+
+		return Result.Count > 0 ? averagePrecision / Result.Count : 0m;
+	}
+
+
+	public decimal MAP(List<List<DocumentSimilarity>> result, int queryNumber)
+	{
+		var totalAP = 0m;
+
+		for (int i = 0; i < result.Count; i++)
+		{
+			var ap = CalculateAveragePrecision(result[i], queryNumber);
+			totalAP += ap;
+		}
+
+		return totalAP / result.Count;
+	}
 	private Tensor<long> PreProcessText(string text)
 	{
+		text = text.Replace("\r", " ").Replace("\n", " ");
 		var tokens = Tokenizing(text);
 		var inputIds = new List<long>();
 		tokens.Insert(0, "[CLS]");
 		tokens.Add("[SEP]");
 
-		foreach (var token in tokens)
+		foreach (var token in tokens.Where(x => !string.IsNullOrWhiteSpace(x)).ToList())
 		{
 			var exists = vocab.TryGetValue(token, out int id);
 
-			inputIds.Add(exists ? id : vocab["UNK"]);
+			inputIds.Add(exists ? id : vocab["[UNK]"]);
 		}
 		int maxSequenceLength = 256;
 		if (inputIds.Count > maxSequenceLength)
@@ -272,8 +326,12 @@ public partial class BertEmbeddings(string sourcePath, string relPath, string vo
 	private static partial Regex DocumentAuthor();
 	[GeneratedRegex("(?<=\\.W\\s).*(?=\\n\\.X)", RegexOptions.Singleline)]
 	private static partial Regex DocumentContent();
+	[GeneratedRegex("(?<=\\.W\\s).*(?=\\n\\.I)", RegexOptions.Singleline)]
+	private static partial Regex QueryContent();
 	[GeneratedRegex("\\n\\.X\\s(.+)")]
 	private static partial Regex DocumentExtra();
 	[GeneratedRegex("(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+\\.\\d+)")]
 	private static partial Regex EvaluationSplitter();
+
+
 }

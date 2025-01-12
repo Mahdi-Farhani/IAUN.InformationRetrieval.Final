@@ -402,6 +402,40 @@ public partial class DocumentParser(string sourcePath,string relPath, IDatabase 
 		return ((precision*recall) / (precision+recall))*2;
 	}
 
+	private decimal CalculateAveragePrecision(List<PostingListInfo> retrievedDocs,int queryNumber)
+	{
+		var averagePrecision = 0m;
+		int relevantRetrieved = 0;
+
+		for (int i = 0; i < retrievedDocs.Count; i++)
+		{
+			if (Result.Where(x => x.QueryNumber == queryNumber).Any(x => x.DocumentId == retrievedDocs[i].DocumentId))
+			{
+				relevantRetrieved++;
+				var precisionAtK = (decimal)relevantRetrieved / (i + 1);
+				averagePrecision += precisionAtK;
+			}
+		}
+
+		return Result.Count > 0 ? averagePrecision / Result.Count : 0m;
+	}
+
+
+	public decimal MAP(List<List<PostingListInfo>> result, int queryNumber)
+	{
+		var totalAP = 0m;
+
+		for (int i = 0; i < result.Count; i++)
+		{
+			var ap = CalculateAveragePrecision(result[i],queryNumber);
+			totalAP += ap;
+		}
+
+		return totalAP / result.Count;
+	}
+
+
+
 
 	[GeneratedRegex(@"^\n?\.I\s+\d+", RegexOptions.Multiline)]
 	private static partial Regex DocumentSplitter();
